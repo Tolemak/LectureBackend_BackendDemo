@@ -27,43 +27,128 @@ abstract class ApiTestCase extends WebTestCase
         $databaseClient->dropDatabase();
 
         $this->addSampleUsers($databaseClient);
+        $this->addSampleLectures($databaseClient);
     }
 
     protected function addSampleUsers(DatabaseClient $databaseClient): void
     {
-        $this->studentUser = new User(
-            new StringId('student-1'),
-            'Student Example',
-            UserRole::STUDENT
-        );
-        $databaseClient->upsert(
-            'user',
-            ['id' => (string)$this->studentUser->getId()],
+        $users = [
+            // Studenci
             [
-                '$set' => [
-                    'id' => (string)$this->studentUser->getId(),
-                    'name' => $this->studentUser->getName(),
-                    'role' => $this->studentUser->getRole()->value,
-                ]
-            ]
-        );
+                'id' => 'student-1',
+                'name' => 'Student Example',
+                'role' => UserRole::STUDENT,
+                'assignTo' => 'studentUser', // główny student do testów
+            ],
+            [
+                'id' => 'student-2',
+                'name' => 'Student Two',
+                'role' => UserRole::STUDENT,
+            ],
+            [
+                'id' => 'student-3',
+                'name' => 'Student Three',
+                'role' => UserRole::STUDENT,
+            ],
+            // Wykładowcy
+            [
+                'id' => 'lecturer-1',
+                'name' => 'Lecturer Example',
+                'role' => UserRole::LECTURER,
+                'assignTo' => 'lecturerUser', // główny wykładowca do testów
+            ],
+            [
+                'id' => 'lecturer-2',
+                'name' => 'Lecturer Two',
+                'role' => UserRole::LECTURER,
+            ],
+        ];
 
-        $this->lecturerUser = new User(
-            new StringId('lecturer-1'),
-            'Lecturer Example',
-            UserRole::LECTURER
-        );
-        $databaseClient->upsert(
-            'user',
-            ['id' => (string)$this->lecturerUser->getId()],
-            [
-                '$set' => [
-                    'id' => (string)$this->lecturerUser->getId(),
-                    'name' => $this->lecturerUser->getName(),
-                    'role' => $this->lecturerUser->getRole()->value,
+        foreach ($users as $userData) {
+            $user = new User(
+                new StringId($userData['id']),
+                $userData['name'],
+                $userData['role']
+            );
+            $databaseClient->upsert(
+                'user',
+                ['id' => (string)$user->getId()],
+                [
+                    '$set' => [
+                        'id' => (string)$user->getId(),
+                        'name' => $user->getName(),
+                        'role' => $user->getRole()->value,
+                    ]
                 ]
-            ]
-        );
+            );
+            // Przypisz do właściwości klasy jeśli trzeba
+            if (isset($userData['assignTo'])) {
+                $this->{$userData['assignTo']} = $user;
+            }
+        }
+    }
+
+    protected function addSampleLectures(DatabaseClient $databaseClient): void
+    {
+        $lectures = [
+            [
+                'id' => 'lecture-1',
+                'lecturerId' => 'lecturer-1',
+                'name' => 'Matematyka',
+                'studentLimit' => 30,
+                'startDate' => (new \DateTimeImmutable('+1 day'))->format(DATE_ATOM),
+                'endDate' => (new \DateTimeImmutable('+2 days'))->format(DATE_ATOM),
+            ],
+            [
+                'id' => 'lecture-2',
+                'lecturerId' => 'lecturer-1',
+                'name' => 'Fizyka',
+                'studentLimit' => 25,
+                'startDate' => (new \DateTimeImmutable('+3 days'))->format(DATE_ATOM),
+                'endDate' => (new \DateTimeImmutable('+4 days'))->format(DATE_ATOM),
+            ],
+            [
+                'id' => 'lecture-3',
+                'lecturerId' => 'lecturer-2',
+                'name' => 'Chemia',
+                'studentLimit' => 20,
+                'startDate' => (new \DateTimeImmutable('+5 days'))->format(DATE_ATOM),
+                'endDate' => (new \DateTimeImmutable('+6 days'))->format(DATE_ATOM),
+            ],
+            [
+                'id' => 'lecture-4',
+                'lecturerId' => 'lecturer-2',
+                'name' => 'Biologia',
+                'studentLimit' => 15,
+                'startDate' => (new \DateTimeImmutable('+7 days'))->format(DATE_ATOM),
+                'endDate' => (new \DateTimeImmutable('+8 days'))->format(DATE_ATOM),
+            ],
+            [
+                'id' => 'lecture-5',
+                'lecturerId' => 'lecturer-1',
+                'name' => 'Historia',
+                'studentLimit' => 40,
+                'startDate' => (new \DateTimeImmutable('+9 days'))->format(DATE_ATOM),
+                'endDate' => (new \DateTimeImmutable('+10 days'))->format(DATE_ATOM),
+            ],
+        ];
+
+        foreach ($lectures as $lecture) {
+            $databaseClient->upsert(
+                'lectures',
+                ['id' => $lecture['id']],
+                [
+                    '$set' => [
+                        'id' => $lecture['id'],
+                        'lecturerId' => $lecture['lecturerId'],
+                        'name' => $lecture['name'],
+                        'studentLimit' => $lecture['studentLimit'],
+                        'startDate' => $lecture['startDate'],
+                        'endDate' => $lecture['endDate'],
+                    ]
+                ]
+            );
+        }
     }
 
     protected function makeRequest(string $method, string $uri, string $content = '', array $headers = []): Response
