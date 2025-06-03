@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Gwo\AppsRecruitmentTask\Persistence;
 
 use MongoDB\Client;
-use MongoDB\Driver\Command;
 use MongoDB\Model\BSONDocument;
 
 final readonly class DatabaseClient
@@ -21,19 +20,9 @@ final readonly class DatabaseClient
 
     public function upsert(string $collectionName, array $query, array $document): void
     {
-        $upsert = new Command([
-            'update' => $collectionName,
-            'updates' => [
-                [
-                    'q' => $query,
-                    'u' => $document,
-                    'upsert' => true,
-                    'multi' => false,
-                ],
-            ],
-        ]);
-
-        $this->mongoClient->getManager()->executeCommand($this->databaseName, $upsert);
+        $this->mongoClient
+            ->selectCollection($this->databaseName, $collectionName)
+            ->updateOne($query, $document, ['upsert' => true]);
     }
 
     public function getByQuery(string $collectionName, array $query, array $options = []): array
@@ -42,10 +31,15 @@ final readonly class DatabaseClient
             ->selectCollection($this->databaseName, $collectionName)
             ->find($query, $options);
 
-        return array_map(
-            static fn(BSONDocument $document): array => $document->getArrayCopy(),
-            $documents->toArray(),
-        );
+        $result = [];
+        foreach ($documents as $document) {
+            if ($document instanceof BSONDocument) {
+                $result[] = $document->getArrayCopy();
+            } else {
+                $result[] = (array)$document;
+            }
+        }
+        return $result;
     }
 
     public function dropDatabase(): void
