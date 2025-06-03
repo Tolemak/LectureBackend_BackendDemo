@@ -15,6 +15,7 @@ final readonly class Lecture
         private int $studentLimit,
         private \DateTimeImmutable $startDate,
         private \DateTimeImmutable $endDate,
+        private array $students = []
     ) {
     }
 
@@ -46,5 +47,10 @@ final readonly class Lecture
     public function getEndDate(): \DateTimeImmutable
     {
         return $this->endDate;
+    }
+
+    public function getStudents(): array
+    {
+        return $this->students;
     }
 }

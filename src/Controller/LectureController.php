@@ -22,7 +22,7 @@ class LectureController extends AbstractController
     public function listLectures(): JsonResponse
     {
         $lectures = $this->lectureService->getAllLectures();
-        return new JsonResponse($lectures, Response::HTTP_OK);
+        return new JsonResponse($lectures->toArray(), Response::HTTP_OK);
     }
 
     #[Route('', methods: ['POST'], name: 'lecture_create')]
