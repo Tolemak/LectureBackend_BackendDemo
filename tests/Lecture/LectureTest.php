@@ -116,7 +116,38 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function cannotEnrollToLectureIfStudentLimitExceeded(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $this->httpClient->getContainer()->get(\Gwo\AppsRecruitmentTask\Persistence\DatabaseClient::class)
+            ->upsert(
+                'lectures',
+                ['id' => 'lecture-2'],
+                ['$set' => ['studentLimit' => 1, 'students' => []]]
+            );
+
+        $payload1 = [
+            'studentId' => 'student-1',
+        ];
+        $response1 = $this->makeRequest(
+            'POST',
+            '/lectures/lecture-2/enroll',
+            json_encode($payload1),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+        $this->assertEquals(200, $response1->getStatusCode());
+
+        $payload2 = [
+            'studentId' => 'student-2',
+        ];
+        $response2 = $this->makeRequest(
+            'POST',
+            '/lectures/lecture-2/enroll',
+            json_encode($payload2),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+        $this->assertEquals(409, $response2->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['error' => 'Student limit reached']),
+            $response2->getContent()
+        );
     }
 
     /** @test */
@@ -128,7 +159,48 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function cannotEnrollToSameLectureMoreThanOnce(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $payload = [
+            'studentId' => (string)$this->studentUser->getId(),
+        ];
+
+        $response1 = $this->makeRequest(
+            'POST',
+            '/lectures/lecture-1/enroll',
+            json_encode($payload),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+        $this->assertEquals(200, $response1->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['status' => 'enrolled']),
+            $response1->getContent()
+        );
+
+        $response2 = $this->makeRequest(
+            'POST',
+            '/lectures/lecture-1/enroll',
+            json_encode($payload),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+        $this->assertEquals(200, $response2->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['status' => 'enrolled']),
+            $response2->getContent()
+        );
+
+        $response = $this->makeRequest('GET', '/lectures');
+        $lectures = json_decode($response->getContent(), true);
+
+        $count = 0;
+        foreach ($lectures as $lecture) {
+            if ($lecture['id'] === 'lecture-1' && isset($lecture['students'])) {
+                foreach ($lecture['students'] as $studentId) {
+                    if ($studentId === (string)$this->studentUser->getId()) {
+                        $count++;
+                    }
+                }
+            }
+        }
+        $this->assertEquals(1, $count, 'Student powinien być zapisany tylko raz na wykład lecture-1');
     }
 
     /** @test */

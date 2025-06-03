@@ -48,11 +48,22 @@ class LectureController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
         $studentId = $data['studentId'] ?? null;
-        if ($studentId) {
-            $this->lectureService->enrollStudent($id, $studentId);
-            return new JsonResponse(['status' => 'enrolled'], Response::HTTP_OK);
+        if (!$studentId) {
+            return new JsonResponse(['error' => 'studentId required'], Response::HTTP_BAD_REQUEST);
         }
-        return new JsonResponse(['error' => 'studentId required'], Response::HTTP_BAD_REQUEST);
+
+        try {
+            $this->lectureService->enrollStudent($id, $studentId);
+        } catch (\RuntimeException $e) {
+            if ($e->getMessage() === 'Student limit reached') {
+                return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
+            }
+            throw $e;
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
+
+        return new JsonResponse(['status' => 'enrolled'], Response::HTTP_OK);
     }
 
     #[Route('/{id}/students/{studentId}', methods: ['DELETE'], name: 'lecture_remove_student')]

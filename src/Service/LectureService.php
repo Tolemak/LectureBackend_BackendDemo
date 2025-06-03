@@ -72,7 +72,13 @@ class LectureService
     public function enrollStudent(string $lectureId, string $studentId): void
     {
         $lectureCollection = $this->getAllLectures();
-        $lecture = $lectureCollection->filter(fn(Lecture $l) => (string)$l->getId() === $lectureId)->getItems()[0] ?? null;
+        $lecture = null;
+        foreach ($lectureCollection->getItems() as $l) {
+            if ((string)$l->getId() === (string)$lectureId) {
+                $lecture = $l;
+                break;
+            }
+        }
         if (!$lecture) {
             throw new \InvalidArgumentException('Lecture not found');
         }
@@ -80,13 +86,13 @@ class LectureService
         if (in_array($studentId, $students, true)) {
             return;
         }
-        if (isset($lecture->studentLimit) && count($students) >= $lecture->studentLimit) {
+        if ($lecture->getStudentLimit() !== null && count($students) >= $lecture->getStudentLimit()) {
             throw new \RuntimeException('Student limit reached');
         }
         $students[] = $studentId;
         $this->databaseClient->upsert(
             'lectures',
-            ['id' => $lectureId],
+            ['id' => (string)$lecture->getId()],
             [
                 '$set' => [
                     'students' => $students,
