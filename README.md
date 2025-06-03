@@ -1,4 +1,4 @@
-# Apps Recruitment Task
+# LectureBackend
 
 Celem tego zadania było napisanie aplikacji umożliwiającej uczniom zapisywanie się na wykłady.
 
