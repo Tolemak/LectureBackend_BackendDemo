@@ -76,7 +76,37 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function lecturerCanRemoveStudentFromOwnLecture(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $studentId = (string)$this->studentUser->getId();
+
+        $this->makeRequest(
+            'POST',
+            '/lectures/lecture-1/enroll',
+            json_encode(['studentId' => $studentId]),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+
+        $response = $this->makeRequest(
+            'DELETE',
+            '/lectures/lecture-1/students/' . $studentId
+        );
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['status' => 'removed']),
+            $response->getContent()
+        );
+
+        $response = $this->makeRequest('GET', '/lectures');
+        $lectures = json_decode($response->getContent(), true);
+
+        $found = false;
+        foreach ($lectures as $lecture) {
+            if ($lecture['id'] === 'lecture-1' && isset($lecture['students']) && in_array($studentId, $lecture['students'], true)) {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertFalse($found, 'Student nie powinien być już zapisany na wykład lecture-1');
     }
 
     /** @test */
@@ -153,7 +183,41 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function cannotEnrollToLectureIfAlreadyStarted(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $lectureId = 'lecture-already-started';
+        $studentId = (string)$this->studentUser->getId();
+
+        $this->httpClient->getContainer()->get(\Gwo\AppsRecruitmentTask\Persistence\DatabaseClient::class)
+            ->upsert(
+                'lectures',
+                ['id' => $lectureId],
+                [
+                    '$set' => [
+                        'id' => $lectureId,
+                        'lecturerId' => (string)$this->lecturerUser->getId(),
+                        'name' => 'Już rozpoczęty wykład',
+                        'studentLimit' => 10,
+                        'startDate' => (new \DateTimeImmutable('-2 hours'))->format(DATE_ATOM),
+                        'endDate' => (new \DateTimeImmutable('+2 hours'))->format(DATE_ATOM),
+                        'students' => [],
+                    ]
+                ]
+            );
+
+        $payload = [
+            'studentId' => $studentId,
+        ];
+        $response = $this->makeRequest(
+            'POST',
+            '/lectures/' . $lectureId . '/enroll',
+            json_encode($payload),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+
+        $this->assertEquals(409, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['error' => 'Lecture already started']),
+            $response->getContent()
+        );
     }
 
     /** @test */
@@ -206,6 +270,33 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function studentCanFetchListOfEnrolledLectures(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $studentId = (string)$this->studentUser->getId();
+
+        $this->makeRequest(
+            'POST',
+            '/lectures/lecture-1/enroll',
+            json_encode(['studentId' => $studentId]),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+        $this->makeRequest(
+            'POST',
+            '/lectures/lecture-2/enroll',
+            json_encode(['studentId' => $studentId]),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+
+        $response = $this->makeRequest('GET', '/lectures');
+        $lectures = json_decode($response->getContent(), true);
+
+        $enrolledLectures = [];
+        foreach ($lectures as $lecture) {
+            if (isset($lecture['students']) && in_array($studentId, $lecture['students'], true)) {
+                $enrolledLectures[] = $lecture['id'];
+            }
+        }
+
+        sort($enrolledLectures);
+
+        $this->assertEquals(['lecture-1', 'lecture-2'], $enrolledLectures);
     }
 }
