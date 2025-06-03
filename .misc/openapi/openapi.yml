@@ -3,8 +3,165 @@ info:
   title: GWO Apps Recruitment Task
   version: "0.1.0"
 servers:
-  - url: http://localhost:10997
+  - url: http://localhost:10990
     description: Docker
 
 paths:
-  # todo
+  /lectures:
+    get:
+      summary: Pobierz listę wykładów
+      operationId: listLectures
+      responses:
+        '200':
+          description: Lista wykładów
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Lecture'
+    post:
+      summary: Utwórz nowy wykład
+      operationId: createLecture
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LectureInput'
+      responses:
+        '201':
+          description: Wykład utworzony
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '403':
+          description: Brak uprawnień
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /lectures/{id}/enroll:
+    post:
+      summary: Zapisz studenta na wykład
+      operationId: enrollStudent
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                studentId:
+                  type: string
+      responses:
+        '200':
+          description: Zapisano na wykład
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '409':
+          description: Limit studentów osiągnięty lub wykład już się rozpoczął
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /lectures/{id}/students/{studentId}:
+    delete:
+      summary: Usuń studenta z wykładu
+      operationId: removeStudent
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: studentId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Student usunięty z wykładu
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        '400':
+          description: Wykład nie istnieje
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+components:
+  schemas:
+    Lecture:
+      type: object
+      properties:
+        id:
+          type: string
+        lecturerId:
+          type: string
+        name:
+          type: string
+        studentLimit:
+          type: integer
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
+    LectureInput:
+      type: object
+      required:
+        - lecturerId
+        - name
+        - studentLimit
+        - startDate
+        - endDate
+      properties:
+        id:
+          type: string
+        lecturerId:
+          type: string
+        name:
+          type: string
+        studentLimit:
+          type: integer
+        startDate:
+          type: string
+          format: date-time
+        endDate:
+          type: string
+          format: date-time
