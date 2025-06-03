@@ -24,5 +24,7 @@ services:
     # please note that last definitions always *replace* previous ones
 
     Gwo\AppsRecruitmentTask\Persistence\DatabaseClient:
-        $databaseUri: '%database_uri%'
-        $databaseName: '%database_name%'
+        arguments:
+            $databaseUri: '%database_uri%'
+            $databaseName: '%database_name%'
+        public: true
