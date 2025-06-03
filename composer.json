@@ -9,9 +9,12 @@
     "lambdish/phunctional": "^2.1",
     "mongodb/mongodb": "^1.9",
     "ramsey/uuid": "^4.2",
+    "symfony/console": "6.2.*",
     "symfony/dotenv": "^6.2",
     "symfony/flex": "^2",
     "symfony/framework-bundle": "^6.2",
+    "symfony/routing": "6.2.*",
+    "symfony/runtime": "6.2.*",
     "symfony/yaml": "^6.2"
   },
   "require-dev": {
@@ -27,7 +30,8 @@
     },
     "sort-packages": true,
     "allow-plugins": {
-      "symfony/flex": true
+      "symfony/flex": true,
+      "symfony/runtime": true
     }
   },
   "autoload": {
