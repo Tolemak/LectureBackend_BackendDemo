@@ -14,3 +14,5 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 COPY ./ ./
+
+RUN php -S 0.0.0.0:80 -t public > /dev/null 2>&1 &
