@@ -82,7 +82,35 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function studentCanEnrollToLecture(): void
     {
-        $this->markTestIncomplete('Not implemented');
+        $payload = [
+            'studentId' => (string)$this->studentUser->getId(),
+        ];
+
+        $response = $this->makeRequest(
+            'POST',
+            '/lectures/lecture-1/enroll',
+            json_encode($payload),
+            ['CONTENT_TYPE' => 'application/json']
+        );
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['status' => 'enrolled']),
+            $response->getContent()
+        );
+
+        // Sprawdź, czy student jest na liście studentów wykładu
+        $response = $this->makeRequest('GET', '/lectures');
+        $lectures = json_decode($response->getContent(), true);
+
+        $found = false;
+        foreach ($lectures as $lecture) {
+            if ($lecture['id'] === 'lecture-1' && isset($lecture['students']) && in_array((string)$this->studentUser->getId(), $lecture['students'], true)) {
+                $found = true;
+                break;
+            }
+        }
+        $this->assertTrue($found, 'Student powinien być zapisany na wykład lecture-1');
     }
 
     /** @test */

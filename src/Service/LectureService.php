@@ -55,7 +55,28 @@ class LectureService
 
     public function enrollStudent(string $lectureId, string $studentId): void
     {
-        // Implementacja logiki zapisania ucznia na wykład
+        $lectures = $this->databaseClient->getByQuery('lectures', ['id' => $lectureId]);
+        if (empty($lectures)) {
+            throw new \InvalidArgumentException('Lecture not found');
+        }
+        $lecture = $lectures[0];
+        $students = $lecture['students'] ?? [];
+        if (in_array($studentId, $students, true)) {
+            return;
+        }
+        if (isset($lecture['studentLimit']) && count($students) >= $lecture['studentLimit']) {
+            throw new \RuntimeException('Student limit reached');
+        }
+        $students[] = $studentId;
+        $this->databaseClient->upsert(
+            'lectures',
+            ['id' => $lectureId],
+            [
+                '$set' => [
+                    'students' => $students,
+                ]
+            ]
+        );
     }
 
     public function removeStudent(string $lectureId, string $studentId): void
