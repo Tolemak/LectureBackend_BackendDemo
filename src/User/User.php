@@ -11,7 +11,7 @@ final readonly class User
     public function __construct(
         private StringId $id,
         private string $name,
-        private UserRole $role,
+        public UserRole $role,
     ) {
     }
 

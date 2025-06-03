@@ -35,8 +35,6 @@ final readonly class DatabaseClient
         foreach ($documents as $document) {
             if ($document instanceof BSONDocument) {
                 $result[] = $document->getArrayCopy();
-            } else {
-                $result[] = (array)$document;
             }
         }
         return $result;

@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Gwo\AppsRecruitmentTask\Tests\Lecture;
 
 use Gwo\AppsRecruitmentTask\Tests\ApiTestCase;
+use Gwo\AppsRecruitmentTask\User\UserRole;
 use Gwo\AppsRecruitmentTask\Util\StringId;
+
+use function PHPUnit\Framework\assertEquals;
 
 final class LectureTest extends ApiTestCase
 {
@@ -52,6 +55,7 @@ final class LectureTest extends ApiTestCase
     /** @test */
     public function studentCannotCreateNewLecture(): void
     {
+        assertEquals(UserRole::STUDENT,  $this->studentUser->getRole());
         $payload = [
             'id' => 'lecture-student',
             'lecturerId' => (string)$this->studentUser->getId(),
@@ -98,17 +102,16 @@ final class LectureTest extends ApiTestCase
             $response->getContent()
         );
 
-        $response = $this->makeRequest('GET', '/lectures');
-        $lectures = json_decode($response->getContent(), true);
+        $enrollments = $this->httpClient->getContainer()
+            ->get(\Gwo\AppsRecruitmentTask\Service\LectureService::class)
+            ->getEnrolledStudents('lecture-1');
 
-        $found = false;
-        foreach ($lectures as $lecture) {
-            if ($lecture['id'] === 'lecture-1' && isset($lecture['students']) && in_array($studentId, $lecture['students'], true)) {
-                $found = true;
-                break;
-            }
-        }
-        $this->assertFalse($found, 'Student nie powinien być już zapisany na wykład lecture-1');
+        $studentIds = array_map(
+            fn($enrollment) => (string)$enrollment->getStudentId(),
+            $enrollments->getItems()
+        );
+
+        $this->assertNotContains($studentId, $studentIds, 'Student nie powinien być już zapisany na wykład lecture-1');
     }
 
     /** @test */
@@ -131,18 +134,16 @@ final class LectureTest extends ApiTestCase
             $response->getContent()
         );
 
-        // Sprawdź, czy student jest na liście studentów wykładu
-        $response = $this->makeRequest('GET', '/lectures');
-        $lectures = json_decode($response->getContent(), true);
+        $enrollments = $this->httpClient->getContainer()
+            ->get(\Gwo\AppsRecruitmentTask\Service\LectureService::class)
+            ->getEnrolledStudents('lecture-1');
 
-        $found = false;
-        foreach ($lectures as $lecture) {
-            if ($lecture['id'] === 'lecture-1' && isset($lecture['students']) && in_array((string)$this->studentUser->getId(), $lecture['students'], true)) {
-                $found = true;
-                break;
-            }
-        }
-        $this->assertTrue($found, 'Student powinien być zapisany na wykład lecture-1');
+        $studentIds = array_map(
+            fn($enrollment) => (string)$enrollment->getStudentId(),
+            $enrollments->getItems()
+        );
+
+        $this->assertContains((string)$this->studentUser->getId(), $studentIds, 'Student powinien być zapisany na wykład lecture-1');
     }
 
     /** @test */
@@ -152,7 +153,7 @@ final class LectureTest extends ApiTestCase
             ->upsert(
                 'lectures',
                 ['id' => 'lecture-2'],
-                ['$set' => ['studentLimit' => 1, 'students' => []]]
+                ['$set' => ['studentLimit' => 1]]
             );
 
         $payload1 = [
@@ -200,7 +201,6 @@ final class LectureTest extends ApiTestCase
                         'studentLimit' => 10,
                         'startDate' => (new \DateTimeImmutable('-2 hours'))->format(DATE_ATOM),
                         'endDate' => (new \DateTimeImmutable('+2 hours'))->format(DATE_ATOM),
-                        'students' => [],
                     ]
                 ]
             );
@@ -253,17 +253,19 @@ final class LectureTest extends ApiTestCase
             $response2->getContent()
         );
 
-        $response = $this->makeRequest('GET', '/lectures');
-        $lectures = json_decode($response->getContent(), true);
+        $enrollments = $this->httpClient->getContainer()
+            ->get(\Gwo\AppsRecruitmentTask\Service\LectureService::class)
+            ->getEnrolledStudents('lecture-1');
+
+        $studentIds = array_map(
+            fn($enrollment) => (string)$enrollment->getStudentId(),
+            $enrollments->getItems()
+        );
 
         $count = 0;
-        foreach ($lectures as $lecture) {
-            if ($lecture['id'] === 'lecture-1' && isset($lecture['students'])) {
-                foreach ($lecture['students'] as $studentId) {
-                    if ($studentId === (string)$this->studentUser->getId()) {
-                        $count++;
-                    }
-                }
+        foreach ($studentIds as $id) {
+            if ($id === (string)$this->studentUser->getId()) {
+                $count++;
             }
         }
         $this->assertEquals(1, $count, 'Student powinien być zapisany tylko raz na wykład lecture-1');
@@ -287,13 +289,15 @@ final class LectureTest extends ApiTestCase
             ['CONTENT_TYPE' => 'application/json']
         );
 
-        $response = $this->makeRequest('GET', '/lectures');
-        $lectures = json_decode($response->getContent(), true);
+        $lectureService = $this->httpClient->getContainer()->get(\Gwo\AppsRecruitmentTask\Service\LectureService::class);
 
         $enrolledLectures = [];
-        foreach ($lectures as $lecture) {
-            if (isset($lecture['students']) && in_array($studentId, $lecture['students'], true)) {
-                $enrolledLectures[] = $lecture['id'];
+        foreach (['lecture-1', 'lecture-2'] as $lectureId) {
+            $enrollments = $lectureService->getEnrolledStudents($lectureId);
+            foreach ($enrollments->getItems() as $enrollment) {
+                if ((string)$enrollment->getStudentId() === $studentId) {
+                    $enrolledLectures[] = $lectureId;
+                }
             }
         }
 

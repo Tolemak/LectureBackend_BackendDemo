@@ -5,10 +5,13 @@ namespace Gwo\AppsRecruitmentTask\Service;
 use Gwo\AppsRecruitmentTask\Persistence\DatabaseClient;
 use Gwo\AppsRecruitmentTask\Lecture\Lecture;
 use Gwo\AppsRecruitmentTask\Lecture\LectureCollection;
+use Gwo\AppsRecruitmentTask\Lecture\LectureEnrollment;
+use Gwo\AppsRecruitmentTask\Lecture\LectureEnrollmentCollection;
 use Gwo\AppsRecruitmentTask\Util\StringId;
 
 class LectureService
 {
+    
     public function __construct(
         private readonly DatabaseClient $databaseClient
     ) {}
@@ -23,8 +26,7 @@ class LectureService
                 name: $data['name'],
                 studentLimit: $data['studentLimit'],
                 startDate: new \DateTimeImmutable($data['startDate']),
-                endDate: new \DateTimeImmutable($data['endDate']),
-                students: isset($data['students']) ? (array)$data['students'] : []
+                endDate: new \DateTimeImmutable($data['endDate'])
             ),
             $lecturesData
         );
@@ -34,9 +36,6 @@ class LectureService
     public function canCreateLecture(string $userId): bool
     {
         $users = $this->databaseClient->getByQuery('user', ['id' => $userId]);
-        if (empty($users)) {
-            return false;
-        }
         return ($users[0]['role'] ?? null) === 'lecturer';
     }
 
@@ -49,8 +48,7 @@ class LectureService
             name: $data['name'],
             studentLimit: $data['studentLimit'],
             startDate: new \DateTimeImmutable($data['startDate']),
-            endDate: new \DateTimeImmutable($data['endDate']),
-            students: $data['students'] ?? []
+            endDate: new \DateTimeImmutable($data['endDate'])
         );
 
         $this->databaseClient->upsert(
@@ -64,7 +62,6 @@ class LectureService
                     'studentLimit' => $lecture->getStudentLimit(),
                     'startDate' => $lecture->getStartDate()->format(DATE_ATOM),
                     'endDate' => $lecture->getEndDate()->format(DATE_ATOM),
-                    'students' => $lecture->getStudents(),
                 ]
             ]
         );
@@ -81,29 +78,43 @@ class LectureService
                 break;
             }
         }
-        if (!$lecture) {
-            throw new \InvalidArgumentException('Lecture not found');
-        }
 
         $now = new \DateTimeImmutable();
         if ($lecture->getStartDate() <= $now) {
             throw new \RuntimeException('Lecture already started');
         }
 
-        $students = $lecture->getStudents();
-        if (in_array($studentId, $students, true)) {
-            return;
-        }
-        if ($lecture->getStudentLimit() !== null && count($students) >= $lecture->getStudentLimit()) {
+        $enrollmentsData = $this->databaseClient->getByQuery('lecture_enrollments', ['lectureId' => (string)$lectureId]);
+        $enrollments = array_map(
+            fn($e) => new LectureEnrollment(
+                new StringId($e['lectureId']),
+                new StringId($e['studentId'])
+            ),
+            $enrollmentsData
+        );
+        $enrollmentCollection = new LectureEnrollmentCollection($enrollments);
+
+        if ($lecture->getStudentLimit() !== null && $enrollmentCollection->count() >= $lecture->getStudentLimit()) {
             throw new \RuntimeException('Student limit reached');
         }
-        $students[] = $studentId;
+
+        $alreadyEnrolled = $enrollmentCollection->filter(
+            fn(LectureEnrollment $e) => $e->getStudentId()->equals(new StringId($studentId))
+        );
+        if ($alreadyEnrolled->count() > 0) {
+            return;
+        }
+
         $this->databaseClient->upsert(
-            'lectures',
-            ['id' => (string)$lecture->getId()],
+            'lecture_enrollments',
+            [
+                'lectureId' => (string)$lectureId,
+                'studentId' => (string)$studentId
+            ],
             [
                 '$set' => [
-                    'students' => $students,
+                    'lectureId' => (string)$lectureId,
+                    'studentId' => (string)$studentId
                 ]
             ]
         );
@@ -123,18 +134,37 @@ class LectureService
         if (!$lecture) {
             throw new \InvalidArgumentException('Lecture not found');
         }
-        $students = array_filter(
-            $lecture->getStudents(),
-            fn($id) => $id !== $studentId
+
+        $enrollment = new LectureEnrollment(
+            new StringId($lectureId),
+            new StringId($studentId)
         );
+
         $this->databaseClient->upsert(
-            'lectures',
-            ['id' => (string)$lecture->getId()],
+            'lecture_enrollments',
             [
-                '$set' => [
-                    'students' => array_values($students),
+                'lectureId' => (string)$enrollment->getLectureId(),
+                'studentId' => (string)$enrollment->getStudentId()
+            ],
+            [
+                '$unset' => [
+                    'lectureId' => '',
+                    'studentId' => ''
                 ]
             ]
         );
+    }
+
+    public function getEnrolledStudents(string $lectureId): LectureEnrollmentCollection
+    {
+        $enrollmentsData = $this->databaseClient->getByQuery('lecture_enrollments', ['lectureId' => (string)$lectureId]);
+        $enrollments = array_map(
+            fn($e) => new LectureEnrollment(
+                new StringId($e['lectureId']),
+                new StringId($e['studentId'])
+            ),
+            $enrollmentsData
+        );
+        return new LectureEnrollmentCollection($enrollments);
     }
 }
