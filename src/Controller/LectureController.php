@@ -31,10 +31,6 @@ class LectureController extends AbstractController
         $data = json_decode($request->getContent(), true);
         $lecturerId = $data['lecturerId'] ?? null;
 
-        if (!$lecturerId) {
-            return new JsonResponse(['error' => 'lecturerId required'], Response::HTTP_BAD_REQUEST);
-        }
-
         if (!$this->lectureService->canCreateLecture($lecturerId)) {
             return new JsonResponse(['error' => 'Access denied'], Response::HTTP_FORBIDDEN);
         }
@@ -48,19 +44,13 @@ class LectureController extends AbstractController
     {
         $data = json_decode($request->getContent(), true);
         $studentId = $data['studentId'] ?? null;
-        if (!$studentId) {
-            return new JsonResponse(['error' => 'studentId required'], Response::HTTP_BAD_REQUEST);
-        }
 
         try {
             $this->lectureService->enrollStudent($id, $studentId);
         } catch (\RuntimeException $e) {
-            if ($e->getMessage() === 'Student limit reached') {
+            if ($e->getMessage() === 'Student limit reached' || $e->getMessage() === 'Lecture already started') {
                 return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_CONFLICT);
             }
-            throw $e;
-        } catch (\InvalidArgumentException $e) {
-            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
         }
 
         return new JsonResponse(['status' => 'enrolled'], Response::HTTP_OK);
@@ -69,7 +59,11 @@ class LectureController extends AbstractController
     #[Route('/{id}/students/{studentId}', methods: ['DELETE'], name: 'lecture_remove_student')]
     public function removeStudent(string $id, string $studentId): JsonResponse
     {
-        $this->lectureService->removeStudent($id, $studentId);
+        try {
+            $this->lectureService->removeStudent($id, $studentId);
+        } catch (\InvalidArgumentException $e) {
+            return new JsonResponse(['error' => $e->getMessage()], Response::HTTP_BAD_REQUEST);
+        }
         return new JsonResponse(['status' => 'removed'], Response::HTTP_OK);
     }
 }

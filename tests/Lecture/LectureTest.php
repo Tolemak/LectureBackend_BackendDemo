@@ -5,14 +5,16 @@ declare(strict_types=1);
 namespace Gwo\AppsRecruitmentTask\Tests\Lecture;
 
 use Gwo\AppsRecruitmentTask\Tests\ApiTestCase;
+use Gwo\AppsRecruitmentTask\Util\StringId;
 
 final class LectureTest extends ApiTestCase
 {
     /** @test */
     public function lecturerCanCreateNewLecture(): void
     {
+        $lectureId = StringId::new()->__toString();
         $payload = [
-            'id' => 'lecture-new',
+            'id' => $lectureId,
             'lecturerId' => (string)$this->lecturerUser->getId(),
             'name' => 'Historia',
             'studentLimit' => 40,
@@ -39,7 +41,7 @@ final class LectureTest extends ApiTestCase
 
         $found = false;
         foreach ($lectures as $lecture) {
-            if (isset($lecture['id']) && $lecture['id'] === 'lecture-new') {
+            if (isset($lecture['id']) && $lecture['id'] === $lectureId) {
                 $found = true;
                 break;
             }
@@ -298,5 +300,22 @@ final class LectureTest extends ApiTestCase
         sort($enrolledLectures);
 
         $this->assertEquals(['lecture-1', 'lecture-2'], $enrolledLectures);
+    }
+
+    /** @test */
+    public function cannotRemoveStudentFromNonExistingLecture(): void
+    {
+        $studentId = (string)$this->studentUser->getId();
+
+        $response = $this->makeRequest(
+            'DELETE',
+            '/lectures/non-existing-lecture/students/' . $studentId
+        );
+
+        $this->assertEquals(400, $response->getStatusCode());
+        $this->assertJsonStringEqualsJsonString(
+            json_encode(['error' => 'Lecture not found']),
+            $response->getContent()
+        );
     }
 }

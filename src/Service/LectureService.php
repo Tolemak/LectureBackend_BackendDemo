@@ -42,8 +42,9 @@ class LectureService
 
     public function createLecture(array $data): void
     {
+        $lectureId = isset($data['id']) ? new StringId($data['id']) : StringId::new();
         $lecture = new Lecture(
-            id: new StringId($data['id']),
+            id: $lectureId,
             lecturerId: new StringId($data['lecturerId']),
             name: $data['name'],
             studentLimit: $data['studentLimit'],
@@ -72,9 +73,10 @@ class LectureService
     public function enrollStudent(string $lectureId, string $studentId): void
     {
         $lectureCollection = $this->getAllLectures();
+        $lectureIdObj = new StringId($lectureId);
         $lecture = null;
         foreach ($lectureCollection->getItems() as $l) {
-            if ((string)$l->getId() === (string)$lectureId) {
+            if ($l->getId()->equals($lectureIdObj)) {
                 $lecture = $l;
                 break;
             }
@@ -82,6 +84,12 @@ class LectureService
         if (!$lecture) {
             throw new \InvalidArgumentException('Lecture not found');
         }
+
+        $now = new \DateTimeImmutable();
+        if ($lecture->getStartDate() <= $now) {
+            throw new \RuntimeException('Lecture already started');
+        }
+
         $students = $lecture->getStudents();
         if (in_array($studentId, $students, true)) {
             return;
@@ -104,7 +112,14 @@ class LectureService
     public function removeStudent(string $lectureId, string $studentId): void
     {
         $lectureCollection = $this->getAllLectures();
-        $lecture = $lectureCollection->filter(fn(Lecture $l) => (string)$l->getId() === $lectureId)->getItems()[0] ?? null;
+        $lectureIdObj = new StringId($lectureId);
+        $lecture = null;
+        foreach ($lectureCollection->getItems() as $l) {
+            if ($l->getId()->equals($lectureIdObj)) {
+                $lecture = $l;
+                break;
+            }
+        }
         if (!$lecture) {
             throw new \InvalidArgumentException('Lecture not found');
         }
@@ -114,7 +129,7 @@ class LectureService
         );
         $this->databaseClient->upsert(
             'lectures',
-            ['id' => $lectureId],
+            ['id' => (string)$lecture->getId()],
             [
                 '$set' => [
                     'students' => array_values($students),
