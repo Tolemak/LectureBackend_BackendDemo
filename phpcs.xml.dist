@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<ruleset name="LectureBackend">
+    <description>PSR-12 coding standard for src/ and tests/.</description>
+
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <file>src</file>
+    <file>tests</file>
+
+    <rule ref="PSR12"/>
+</ruleset>
