@@ -32,7 +32,6 @@ abstract class ApiTestCase extends WebTestCase
 
     protected function addSampleUsers(DatabaseClient $databaseClient): void
     {
-        // Główni użytkownicy testowi, dostępni przez $this->studentUser / $this->lecturerUser.
         $this->studentUser = new User(new StringId('student-1'), 'Student Example', UserRole::STUDENT);
         $this->lecturerUser = new User(new StringId('lecturer-1'), 'Lecturer Example', UserRole::LECTURER);
 

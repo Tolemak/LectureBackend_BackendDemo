@@ -34,7 +34,6 @@ final class LectureTest extends ApiTestCase
 
         $created = json_decode($response->getContent(), true);
         $this->assertEquals('created', $created['status']);
-        // The id is always server-generated, never taken from the request payload.
         $this->assertNotEmpty($created['id']);
 
         $response = $this->makeRequest('GET', '/lectures');
@@ -55,7 +54,6 @@ final class LectureTest extends ApiTestCase
     {
         $payload = [
             'lecturerId' => (string)$this->lecturerUser->getId(),
-            // brak 'name', 'studentLimit', 'startDate', 'endDate'
         ];
 
         $response = $this->makeRequest(
@@ -170,8 +168,6 @@ final class LectureTest extends ApiTestCase
             ['CONTENT_TYPE' => 'application/json']
         );
 
-        // lecture-2 belongs to a different lecturer than lecture-1's owner and
-        // isn't the enrolled student either — neither may remove the enrollment.
         $response = $this->makeRequest(
             'DELETE',
             '/lectures/lecture-1/students/' . $studentId,
