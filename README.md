@@ -1,27 +1,25 @@
 # LectureBackend
 
-Celem tego zadania było napisanie aplikacji umożliwiającej uczniom zapisywanie się na wykłady.
+A REST API backend for managing lectures and student enrollments, written in PHP (Symfony) with a MongoDB database.
 
-Jest to nowoczesna aplikacja backendowa napisana w PHP z wykorzystaniem frameworka Symfony. System udostępnia REST API do zarządzania wykładami oraz zapisami studentów. Całość została zaprojektowana z naciskiem na czytelność kodu, testowalność oraz zgodność z dobrymi praktykami architektury aplikacji webowych.
+The app uses PHP 8.2 (enums, readonly classes) and a layered architecture separating domain logic, the data access layer (`src/Persistence`), and the presentation layer (API controllers).
 
-Aplikacja korzysta z bazy danych MongoDB (klient w `src/Persistence`) do przechowywania danych o wykładach, użytkownikach i zapisach. Wykorzystano PHP 8.2 oraz nowoczesne cechy języka, takie jak typy wyliczeniowe (enum), klasy readonly i kolekcje. Całość oparta jest o architekturę warstwową, z wyraźnym rozdzieleniem logiki domenowej, warstwy dostępu do danych oraz warstwy prezentacji (kontrolery API).
+## Features
 
-## Zrealizowane funkcjonalności (User stories)
-* Wykładowca może zakładać nowe wykłady z limitem miejsc. Identyfikator wykładu jest zawsze generowany po stronie serwera i zwracany w odpowiedzi (`{"status": "created", "id": "..."}`) — nie da się nadpisać istniejącego zasobu, podając własne id.
-* Wykładowca może usuwać studentów ze swoich wykładów; student może usunąć własny zapis. Każde inne żądanie usunięcia jest odrzucane (403).
-* Uczeń może zapisywać się na wykłady (na wiele różnych wykładów, ale nie więcej niż raz na ten sam, tylko przed rozpoczęciem i jeśli są wolne miejsca).
-* Uczeń może pobrać listę wykładów, na które jest zapisany.
+* A lecturer can create new lectures with a student limit. The lecture id is always server-generated (`{"status": "created", "id": "..."}`) — an existing resource can't be overwritten by supplying your own id.
+* A lecturer can remove students from their own lectures; a student can remove their own enrollment. Any other removal request is rejected (403).
+* A student can enroll in lectures (in as many different lectures as they like, but only once per lecture, only before it starts, and only if seats are available).
+* A student can fetch the list of lectures they're enrolled in.
 
-## Definition of done
-* Kod jest pokryty testami. Przypadki testowe znajdują się w `tests/Lecture/LectureTest`, w tym scenariusze walidacji danych wejściowych i autoryzacji usuwania zapisów.
-* API zostało opisane w specyfikacji OpenAPI (`.misc/openapi/openapi.yml`).
+## Tests and API docs
 
-## Uruchamianie testów
+* Tests live in `tests/Lecture/LectureTest`, including input validation and enrollment-removal authorization scenarios.
+* The API is described by an OpenAPI spec in `.misc/openapi/openapi.yml`.
+
+## Running tests
+
 ```bash
 make tests
 ```
-Uruchamia środowisko (Docker: aplikacja + MongoDB), wykonuje `phpunit` z pokryciem kodu (`--coverage-text`) oraz sprawdza styl kodu (`phpcs`, PSR-12 — konfiguracja w `phpcs.xml.dist`). Uruchom to polecenie lokalnie, aby zobaczyć aktualny wynik pokrycia — celowo nie trzymamy tu zamrożonej liczby z przeszłości, żeby README nie rozjeżdżało się z rzeczywistym stanem kodu.
 
-## Uwagi
-- Obraz bazy danych w `docker-compose.yml` jest teraz oficjalnym obrazem `mongo:5.0` (wcześniej przypięty tag `bitnami/mongodb:5.0.23` przestał być dostępny na Docker Hub).
-- Do projektu doinstalowano kilka dodatkowych narzędzi i pakietów Symfony, aby ułatwić testowanie i rozwój, m.in. `symfony/routing`, `symfony/console`.
+Spins up the environment (Docker: app + MongoDB), runs `phpunit` with code coverage (`--coverage-text`), and checks code style (`phpcs`, PSR-12 — configured in `phpcs.xml.dist`).
