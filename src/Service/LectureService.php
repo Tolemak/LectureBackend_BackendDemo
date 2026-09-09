@@ -143,8 +143,6 @@ class LectureService
             throw new LectureNotFoundException();
         }
 
-        // Only the lecture's own lecturer, or the student removing themselves,
-        // may remove a student's enrollment.
         $isOwningLecturer = $lecture->getLecturerId()->equals(new StringId($requesterId));
         $isSelfRemoval = $studentId === $requesterId;
         if (!$isOwningLecturer && !$isSelfRemoval) {
