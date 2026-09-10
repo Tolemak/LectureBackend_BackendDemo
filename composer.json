@@ -4,23 +4,23 @@
   "license": "MIT",
   "description": "Lecture management REST API built with Symfony and MongoDB.",
   "require": {
-    "php": "^8.2",
+    "php": "^8.3",
     "ext-mongodb": "*",
     "mongodb/mongodb": "^1.9",
     "ramsey/uuid": "^4.2",
-    "symfony/console": "6.2.*",
-    "symfony/dotenv": "^6.2",
+    "symfony/console": "7.4.*",
+    "symfony/dotenv": "7.4.*",
     "symfony/flex": "^2",
-    "symfony/framework-bundle": "^6.2",
-    "symfony/routing": "6.2.*",
-    "symfony/runtime": "6.2.*",
-    "symfony/yaml": "^6.2"
+    "symfony/framework-bundle": "7.4.*",
+    "symfony/routing": "7.4.*",
+    "symfony/runtime": "7.4.*",
+    "symfony/yaml": "7.4.*"
   },
   "require-dev": {
     "fakerphp/faker": "^1.23",
     "phpunit/phpunit": "^10.5",
     "squizlabs/php_codesniffer": "^4.0",
-    "symfony/browser-kit": "^6.2",
+    "symfony/browser-kit": "7.4.*",
     "zoltanka/bypass-readonly": "^0.0.4"
   },
   "config": {
@@ -62,7 +62,7 @@
   "extra": {
     "symfony": {
       "allow-contrib": false,
-      "require": "6.2.*"
+      "require": "7.4.*"
     }
   }
 }

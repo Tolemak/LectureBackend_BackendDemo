@@ -7,9 +7,6 @@
     <env name="APP_ENV" value="test"/>
     <env name="APP_SECRET" value="1af20bdd374e5a7e4c1317deb60d333b"/>
     <!-- ###- symfony/framework-bundle ### -->
-    <!-- ###+ nelmio/cors-bundle ### -->
-    <env name="CORS_ALLOW_ORIGIN" value="'^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$'"/>
-    <!-- ###- nelmio/cors-bundle ### -->
   </php>
   <testsuites>
     <testsuite name="Lecture Backend">
