@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Service;
 
 use App\Persistence\DatabaseClient;
-use App\Lecture\Exception\InvalidLecturePayloadException;
 use App\Lecture\Exception\LectureAlreadyStartedException;
 use App\Lecture\Exception\LectureNotFoundException;
 use App\Lecture\Exception\NotAuthorizedException;
@@ -14,13 +13,10 @@ use App\Lecture\Lecture;
 use App\Lecture\LectureCollection;
 use App\Lecture\LectureEnrollment;
 use App\Lecture\LectureEnrollmentCollection;
-use App\User\UserRole;
 use App\Util\StringId;
 
 class LectureService
 {
-    private const REQUIRED_LECTURE_FIELDS = ['lecturerId', 'name', 'studentLimit', 'startDate', 'endDate'];
-
     public function __construct(
         private readonly DatabaseClient $databaseClient,
     ) {
@@ -45,38 +41,40 @@ class LectureService
         return $this->hydrateLecture($lecturesData[0]);
     }
 
-    public function canCreateLecture(?StringId $userId): bool
+    public function getLecturesForStudent(StringId $studentId): LectureCollection
     {
-        if ($userId === null) {
-            return false;
+        $enrollments = $this->databaseClient->getByQuery(
+            'lecture_enrollments',
+            ['studentId' => (string)$studentId],
+        );
+
+        $lectures = [];
+        foreach ($enrollments as $enrollment) {
+            $lecture = $this->getLectureById(new StringId($enrollment['lectureId']));
+            if ($lecture !== null) {
+                $lectures[] = $lecture;
+            }
         }
 
-        $users = $this->databaseClient->getByQuery('user', ['id' => (string)$userId]);
-        return ($users[0]['role'] ?? null) === UserRole::LECTURER->value;
+        return new LectureCollection($lectures);
     }
 
-    /**
-     * @param array<string, mixed> $data
-     */
-    public function createLecture(array $data): Lecture
-    {
-        $missingFields = array_values(array_filter(
-            self::REQUIRED_LECTURE_FIELDS,
-            fn(string $field) => !isset($data[$field]) || $data[$field] === '',
-        ));
-        if (count($missingFields) > 0) {
-            throw InvalidLecturePayloadException::forMissingFields($missingFields);
-        }
-
+    public function createLecture(
+        StringId $lecturerId,
+        string $name,
+        int $studentLimit,
+        \DateTimeImmutable $startDate,
+        \DateTimeImmutable $endDate,
+    ): Lecture {
         // The id is always server-generated — a client-supplied id would let
         // callers overwrite an existing lecture via upsert.
         $lecture = new Lecture(
             id: StringId::new(),
-            lecturerId: new StringId($data['lecturerId']),
-            name: $data['name'],
-            studentLimit: $data['studentLimit'],
-            startDate: new \DateTimeImmutable($data['startDate']),
-            endDate: new \DateTimeImmutable($data['endDate']),
+            lecturerId: $lecturerId,
+            name: $name,
+            studentLimit: $studentLimit,
+            startDate: $startDate,
+            endDate: $endDate,
         );
 
         $this->databaseClient->upsert(

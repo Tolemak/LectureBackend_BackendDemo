@@ -14,8 +14,11 @@ use Symfony\Component\HttpFoundation\Response;
 
 abstract class ApiTestCase extends WebTestCase
 {
+    protected const string TEST_PASSWORD = 'test-password';
+
     protected readonly KernelBrowser $httpClient;
     protected User $studentUser;
+    protected User $otherStudentUser;
     protected User $lecturerUser;
 
     protected function setUp(): void
@@ -33,11 +36,12 @@ abstract class ApiTestCase extends WebTestCase
     protected function addSampleUsers(DatabaseClient $databaseClient): void
     {
         $this->studentUser = new User(new StringId('student-1'), 'Student Example', UserRole::STUDENT);
+        $this->otherStudentUser = new User(new StringId('student-2'), 'Student Two', UserRole::STUDENT);
         $this->lecturerUser = new User(new StringId('lecturer-1'), 'Lecturer Example', UserRole::LECTURER);
 
         $users = [
             $this->studentUser,
-            new User(new StringId('student-2'), 'Student Two', UserRole::STUDENT),
+            $this->otherStudentUser,
             new User(new StringId('student-3'), 'Student Three', UserRole::STUDENT),
             $this->lecturerUser,
             new User(new StringId('lecturer-2'), 'Lecturer Two', UserRole::LECTURER),
@@ -52,6 +56,7 @@ abstract class ApiTestCase extends WebTestCase
                         'id' => (string)$user->getId(),
                         'name' => $user->getName(),
                         'role' => $user->getRole()->value,
+                        'password' => password_hash(self::TEST_PASSWORD, PASSWORD_BCRYPT),
                     ],
                 ],
             );
@@ -119,6 +124,41 @@ abstract class ApiTestCase extends WebTestCase
                 ],
             );
         }
+    }
+
+    protected function tokenFor(User $user): string
+    {
+        $response = $this->makeRequest(
+            'POST',
+            '/auth/login',
+            json_encode(['userId' => (string)$user->getId(), 'password' => self::TEST_PASSWORD], JSON_THROW_ON_ERROR),
+            ['CONTENT_TYPE' => 'application/json'],
+        );
+
+        $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+
+        return $payload['token'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function authHeaders(User $user): array
+    {
+        return [
+            'HTTP_AUTHORIZATION' => 'Bearer ' . $this->tokenFor($user),
+            'CONTENT_TYPE' => 'application/json',
+        ];
+    }
+
+    protected function enroll(string $lectureId, User $student): Response
+    {
+        return $this->makeRequest(
+            'POST',
+            '/lectures/' . $lectureId . '/enroll',
+            '',
+            $this->authHeaders($student),
+        );
     }
 
     protected function makeRequest(string $method, string $uri, string $content = '', array $headers = []): Response

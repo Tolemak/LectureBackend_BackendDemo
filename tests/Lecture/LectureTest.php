@@ -4,19 +4,17 @@ declare(strict_types=1);
 
 namespace App\Tests\Lecture;
 
+use App\Persistence\DatabaseClient;
+use App\Service\LectureService;
 use App\Tests\ApiTestCase;
-use App\User\UserRole;
-use App\Util\StringId;
-
-use function PHPUnit\Framework\assertEquals;
+use PHPUnit\Framework\Attributes\Test;
 
 final class LectureTest extends ApiTestCase
 {
-    /** @test */
+    #[Test]
     public function lecturerCanCreateNewLecture(): void
     {
         $payload = [
-            'lecturerId' => (string)$this->lecturerUser->getId(),
             'name' => 'Historia',
             'studentLimit' => 40,
             'startDate' => (new \DateTimeImmutable('+1 day'))->format(DATE_ATOM),
@@ -27,7 +25,7 @@ final class LectureTest extends ApiTestCase
             'POST',
             '/lectures',
             json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
+            $this->authHeaders($this->lecturerUser),
         );
 
         $this->assertEquals(201, $response->getStatusCode());
@@ -36,42 +34,50 @@ final class LectureTest extends ApiTestCase
         $this->assertEquals('created', $created['status']);
         $this->assertNotEmpty($created['id']);
 
-        $response = $this->makeRequest('GET', '/lectures');
+        $response = $this->makeRequest('GET', '/lectures', '', $this->authHeaders($this->lecturerUser));
         $lectures = json_decode($response->getContent(), true);
 
-        $found = false;
-        foreach ($lectures as $lecture) {
-            if (isset($lecture['id']) && $lecture['id'] === $created['id']) {
-                $found = true;
-                break;
-            }
-        }
-        $this->assertTrue($found, 'Nowy wykład powinien być widoczny na liście wykładów');
+        $ids = array_column($lectures, 'id');
+        $this->assertContains($created['id'], $ids, 'The new lecture should show up in the lecture list');
     }
 
-    /** @test */
+    #[Test]
     public function creatingLectureWithMissingFieldsIsRejected(): void
     {
+        $response = $this->makeRequest(
+            'POST',
+            '/lectures',
+            json_encode([]),
+            $this->authHeaders($this->lecturerUser),
+        );
+
+        $this->assertEquals(422, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function creatingLectureEndingBeforeItStartsIsRejected(): void
+    {
         $payload = [
-            'lecturerId' => (string)$this->lecturerUser->getId(),
+            'name' => 'Odwrócona chronologia',
+            'studentLimit' => 10,
+            'startDate' => (new \DateTimeImmutable('+2 days'))->format(DATE_ATOM),
+            'endDate' => (new \DateTimeImmutable('+1 day'))->format(DATE_ATOM),
         ];
 
         $response = $this->makeRequest(
             'POST',
             '/lectures',
             json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
+            $this->authHeaders($this->lecturerUser),
         );
 
-        $this->assertEquals(400, $response->getStatusCode());
+        $this->assertEquals(422, $response->getStatusCode());
     }
 
-    /** @test */
+    #[Test]
     public function studentCannotCreateNewLecture(): void
     {
-        assertEquals(UserRole::STUDENT, $this->studentUser->getRole());
         $payload = [
-            'lecturerId' => (string)$this->studentUser->getId(),
             'name' => 'Zakazana Historia',
             'studentLimit' => 30,
             'startDate' => (new \DateTimeImmutable('+1 day'))->format(DATE_ATOM),
@@ -82,345 +88,257 @@ final class LectureTest extends ApiTestCase
             'POST',
             '/lectures',
             json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
+            $this->authHeaders($this->studentUser),
         );
 
         $this->assertEquals(403, $response->getStatusCode());
-        $this->assertJsonStringEqualsJsonString(
-            json_encode(['error' => 'Access denied']),
-            $response->getContent()
-        );
     }
 
-    /** @test */
+    #[Test]
+    public function requestWithoutTokenIsRejected(): void
+    {
+        $response = $this->makeRequest('GET', '/lectures');
+
+        $this->assertEquals(401, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function requestWithMalformedTokenIsRejected(): void
+    {
+        $response = $this->makeRequest(
+            'GET',
+            '/lectures',
+            '',
+            ['HTTP_AUTHORIZATION' => 'Bearer not-a-real-token'],
+        );
+
+        $this->assertEquals(401, $response->getStatusCode());
+    }
+
+    #[Test]
+    public function loginWithWrongPasswordIsRejected(): void
+    {
+        $response = $this->makeRequest(
+            'POST',
+            '/auth/login',
+            json_encode(['userId' => (string)$this->studentUser->getId(), 'password' => 'wrong']),
+            ['CONTENT_TYPE' => 'application/json'],
+        );
+
+        $this->assertEquals(401, $response->getStatusCode());
+    }
+
+    #[Test]
     public function lecturerCanRemoveStudentFromOwnLecture(): void
     {
         $studentId = (string)$this->studentUser->getId();
-
-        $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode(['studentId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $this->enroll('lecture-1', $this->studentUser);
 
         // lecture-1 is owned by lecturer-1 ($this->lecturerUser) — see ApiTestCase::addSampleLectures().
         $response = $this->makeRequest(
             'DELETE',
             '/lectures/lecture-1/students/' . $studentId,
-            json_encode(['requesterId' => (string)$this->lecturerUser->getId()]),
-            ['CONTENT_TYPE' => 'application/json']
+            '',
+            $this->authHeaders($this->lecturerUser),
         );
 
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['status' => 'removed']),
-            $response->getContent()
-        );
-
-        $enrollments = $this->httpClient->getContainer()
-            ->get(\App\Service\LectureService::class)
-            ->getEnrolledStudents('lecture-1');
-
-        $studentIds = array_map(
-            fn($enrollment) => (string)$enrollment->getStudentId(),
-            $enrollments->getItems()
+            $response->getContent(),
         );
 
         $this->assertNotContains(
             $studentId,
-            $studentIds,
-            'Student nie powinien być już zapisany na wykład lecture-1',
+            $this->enrolledStudentIds('lecture-1'),
+            'The student should no longer be enrolled in lecture-1',
         );
     }
 
-    /** @test */
+    #[Test]
     public function studentCanRemoveOwnEnrollment(): void
     {
         $studentId = (string)$this->studentUser->getId();
-
-        $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode(['studentId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $this->enroll('lecture-1', $this->studentUser);
 
         $response = $this->makeRequest(
             'DELETE',
             '/lectures/lecture-1/students/' . $studentId,
-            json_encode(['requesterId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
+            '',
+            $this->authHeaders($this->studentUser),
         );
 
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    /** @test */
+    #[Test]
     public function unrelatedUserCannotRemoveStudentFromLecture(): void
     {
         $studentId = (string)$this->studentUser->getId();
-
-        $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode(['studentId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $this->enroll('lecture-1', $this->studentUser);
 
         $response = $this->makeRequest(
             'DELETE',
             '/lectures/lecture-1/students/' . $studentId,
-            json_encode(['requesterId' => 'student-2']),
-            ['CONTENT_TYPE' => 'application/json']
+            '',
+            $this->authHeaders($this->otherStudentUser),
         );
 
         $this->assertEquals(403, $response->getStatusCode());
-
-        $enrollments = $this->httpClient->getContainer()
-            ->get(\App\Service\LectureService::class)
-            ->getEnrolledStudents('lecture-1');
-
-        $studentIds = array_map(
-            fn($enrollment) => (string)$enrollment->getStudentId(),
-            $enrollments->getItems()
+        $this->assertContains(
+            $studentId,
+            $this->enrolledStudentIds('lecture-1'),
+            'An unauthorized removal must not take effect',
         );
-
-        $this->assertContains($studentId, $studentIds, 'Usunięcie bez autoryzacji nie powinno się powieść');
     }
 
-    /** @test */
+    #[Test]
     public function studentCanEnrollToLecture(): void
     {
-        $payload = [
-            'studentId' => (string)$this->studentUser->getId(),
-        ];
-
-        $response = $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $response = $this->enroll('lecture-1', $this->studentUser);
 
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['status' => 'enrolled']),
-            $response->getContent()
-        );
-
-        $enrollments = $this->httpClient->getContainer()
-            ->get(\App\Service\LectureService::class)
-            ->getEnrolledStudents('lecture-1');
-
-        $studentIds = array_map(
-            fn($enrollment) => (string)$enrollment->getStudentId(),
-            $enrollments->getItems()
+            $response->getContent(),
         );
 
         $this->assertContains(
             (string)$this->studentUser->getId(),
-            $studentIds,
-            'Student powinien być zapisany na wykład lecture-1',
+            $this->enrolledStudentIds('lecture-1'),
+            'The student should be enrolled in lecture-1',
         );
     }
 
-    /** @test */
+    #[Test]
     public function cannotEnrollToLectureIfStudentLimitExceeded(): void
     {
-        $this->httpClient->getContainer()->get(\App\Persistence\DatabaseClient::class)
-            ->upsert(
-                'lectures',
-                ['id' => 'lecture-2'],
-                ['$set' => ['studentLimit' => 1]]
-            );
+        $this->httpClient->getContainer()->get(DatabaseClient::class)
+            ->upsert('lectures', ['id' => 'lecture-2'], ['$set' => ['studentLimit' => 1]]);
 
-        $payload1 = [
-            'studentId' => 'student-1',
-        ];
-        $response1 = $this->makeRequest(
-            'POST',
-            '/lectures/lecture-2/enroll',
-            json_encode($payload1),
-            ['CONTENT_TYPE' => 'application/json']
-        );
-        $this->assertEquals(200, $response1->getStatusCode());
+        $this->assertEquals(200, $this->enroll('lecture-2', $this->studentUser)->getStatusCode());
 
-        $payload2 = [
-            'studentId' => 'student-2',
-        ];
-        $response2 = $this->makeRequest(
-            'POST',
-            '/lectures/lecture-2/enroll',
-            json_encode($payload2),
-            ['CONTENT_TYPE' => 'application/json']
-        );
-        $this->assertEquals(409, $response2->getStatusCode());
+        $response = $this->enroll('lecture-2', $this->otherStudentUser);
+
+        $this->assertEquals(409, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['error' => 'Student limit reached']),
-            $response2->getContent()
+            $response->getContent(),
         );
     }
 
-    /** @test */
+    #[Test]
     public function cannotEnrollToLectureIfAlreadyStarted(): void
     {
         $lectureId = 'lecture-already-started';
-        $studentId = (string)$this->studentUser->getId();
 
-        $this->httpClient->getContainer()->get(\App\Persistence\DatabaseClient::class)
-            ->upsert(
-                'lectures',
-                ['id' => $lectureId],
-                [
-                    '$set' => [
-                        'id' => $lectureId,
-                        'lecturerId' => (string)$this->lecturerUser->getId(),
-                        'name' => 'Już rozpoczęty wykład',
-                        'studentLimit' => 10,
-                        'startDate' => (new \DateTimeImmutable('-2 hours'))->format(DATE_ATOM),
-                        'endDate' => (new \DateTimeImmutable('+2 hours'))->format(DATE_ATOM),
-                    ]
-                ]
-            );
-
-        $payload = [
-            'studentId' => $studentId,
-        ];
-        $response = $this->makeRequest(
-            'POST',
-            '/lectures/' . $lectureId . '/enroll',
-            json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
+        $this->httpClient->getContainer()->get(DatabaseClient::class)->upsert(
+            'lectures',
+            ['id' => $lectureId],
+            [
+                '$set' => [
+                    'id' => $lectureId,
+                    'lecturerId' => (string)$this->lecturerUser->getId(),
+                    'name' => 'Już rozpoczęty wykład',
+                    'studentLimit' => 10,
+                    'startDate' => (new \DateTimeImmutable('-2 hours'))->format(DATE_ATOM),
+                    'endDate' => (new \DateTimeImmutable('+2 hours'))->format(DATE_ATOM),
+                ],
+            ],
         );
+
+        $response = $this->enroll($lectureId, $this->studentUser);
 
         $this->assertEquals(409, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['error' => 'Lecture already started']),
-            $response->getContent()
+            $response->getContent(),
         );
     }
 
-    /** @test */
+    #[Test]
     public function cannotEnrollToNonExistingLecture(): void
     {
-        $payload = ['studentId' => (string)$this->studentUser->getId()];
-
-        $response = $this->makeRequest(
-            'POST',
-            '/lectures/non-existing-lecture/enroll',
-            json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $response = $this->enroll('non-existing-lecture', $this->studentUser);
 
         $this->assertEquals(400, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['error' => 'Lecture not found']),
-            $response->getContent()
+            $response->getContent(),
         );
     }
 
-    /** @test */
+    #[Test]
     public function cannotEnrollToSameLectureMoreThanOnce(): void
     {
-        $payload = [
-            'studentId' => (string)$this->studentUser->getId(),
-        ];
+        $this->assertEquals(200, $this->enroll('lecture-1', $this->studentUser)->getStatusCode());
+        $this->assertEquals(200, $this->enroll('lecture-1', $this->studentUser)->getStatusCode());
 
-        $response1 = $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
-        );
-        $this->assertEquals(200, $response1->getStatusCode());
-        $this->assertJsonStringEqualsJsonString(
-            json_encode(['status' => 'enrolled']),
-            $response1->getContent()
+        $studentId = (string)$this->studentUser->getId();
+        $occurrences = array_filter(
+            $this->enrolledStudentIds('lecture-1'),
+            static fn(string $id) => $id === $studentId,
         );
 
-        $response2 = $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode($payload),
-            ['CONTENT_TYPE' => 'application/json']
-        );
-        $this->assertEquals(200, $response2->getStatusCode());
-        $this->assertJsonStringEqualsJsonString(
-            json_encode(['status' => 'enrolled']),
-            $response2->getContent()
-        );
-
-        $enrollments = $this->httpClient->getContainer()
-            ->get(\App\Service\LectureService::class)
-            ->getEnrolledStudents('lecture-1');
-
-        $studentIds = array_map(
-            fn($enrollment) => (string)$enrollment->getStudentId(),
-            $enrollments->getItems()
-        );
-
-        $count = 0;
-        foreach ($studentIds as $id) {
-            if ($id === (string)$this->studentUser->getId()) {
-                $count++;
-            }
-        }
-        $this->assertEquals(1, $count, 'Student powinien być zapisany tylko raz na wykład lecture-1');
+        $this->assertCount(1, $occurrences, 'The student should be enrolled in lecture-1 exactly once');
     }
 
-    /** @test */
+    #[Test]
     public function studentCanFetchListOfEnrolledLectures(): void
     {
-        $studentId = (string)$this->studentUser->getId();
+        $this->enroll('lecture-1', $this->studentUser);
+        $this->enroll('lecture-2', $this->studentUser);
 
-        $this->makeRequest(
-            'POST',
-            '/lectures/lecture-1/enroll',
-            json_encode(['studentId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
-        );
-        $this->makeRequest(
-            'POST',
-            '/lectures/lecture-2/enroll',
-            json_encode(['studentId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
-        );
+        $response = $this->makeRequest('GET', '/lectures/mine', '', $this->authHeaders($this->studentUser));
 
-        $lectureService = $this->httpClient->getContainer()
-            ->get(\App\Service\LectureService::class);
+        $this->assertEquals(200, $response->getStatusCode());
 
-        $enrolledLectures = [];
-        foreach (['lecture-1', 'lecture-2'] as $lectureId) {
-            $enrollments = $lectureService->getEnrolledStudents($lectureId);
-            foreach ($enrollments->getItems() as $enrollment) {
-                if ((string)$enrollment->getStudentId() === $studentId) {
-                    $enrolledLectures[] = $lectureId;
-                }
-            }
-        }
+        $ids = array_column(json_decode($response->getContent(), true), 'id');
+        sort($ids);
 
-        sort($enrolledLectures);
-
-        $this->assertEquals(['lecture-1', 'lecture-2'], $enrolledLectures);
+        $this->assertEquals(['lecture-1', 'lecture-2'], $ids);
     }
 
-    /** @test */
+    #[Test]
+    public function enrolledLectureListIsScopedToTheAuthenticatedStudent(): void
+    {
+        $this->enroll('lecture-1', $this->studentUser);
+
+        $response = $this->makeRequest('GET', '/lectures/mine', '', $this->authHeaders($this->otherStudentUser));
+
+        $this->assertEquals(200, $response->getStatusCode());
+        $this->assertEquals([], json_decode($response->getContent(), true));
+    }
+
+    #[Test]
     public function cannotRemoveStudentFromNonExistingLecture(): void
     {
-        $studentId = (string)$this->studentUser->getId();
-
         $response = $this->makeRequest(
             'DELETE',
-            '/lectures/non-existing-lecture/students/' . $studentId,
-            json_encode(['requesterId' => $studentId]),
-            ['CONTENT_TYPE' => 'application/json']
+            '/lectures/non-existing-lecture/students/' . (string)$this->studentUser->getId(),
+            '',
+            $this->authHeaders($this->studentUser),
         );
 
         $this->assertEquals(400, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
             json_encode(['error' => 'Lecture not found']),
-            $response->getContent()
+            $response->getContent(),
+        );
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function enrolledStudentIds(string $lectureId): array
+    {
+        $enrollments = $this->httpClient->getContainer()
+            ->get(LectureService::class)
+            ->getEnrolledStudents($lectureId);
+
+        return array_map(
+            static fn($enrollment) => (string)$enrollment->getStudentId(),
+            $enrollments->getItems(),
         );
     }
 }
