@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      mongodb:
+        image: mongo:5.0
+        ports:
+          - 27017:27017
+
+    env:
+      APP_ENV: test
+      DATABASE_URI: mongodb://localhost:27017/lecture-backend-test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mongodb, ctype, iconv
+          coverage: pcov
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress --no-interaction
+
+      - name: Check coding standard
+        run: vendor/bin/phpcs
+
+      - name: Run tests with coverage
+        run: vendor/bin/phpunit --coverage-clover var/coverage/clover.xml
+
+      - name: Enforce coverage threshold
+        run: php bin/check-coverage.php var/coverage/clover.xml 80
