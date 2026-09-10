@@ -135,6 +135,12 @@ abstract class ApiTestCase extends WebTestCase
             ['CONTENT_TYPE' => 'application/json'],
         );
 
+        self::assertSame(
+            200,
+            $response->getStatusCode(),
+            'Login failed: ' . $response->getContent(),
+        );
+
         $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
 
         return $payload['token'];
