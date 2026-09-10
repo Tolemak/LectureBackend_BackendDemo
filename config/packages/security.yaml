@@ -1,0 +1,30 @@
+security:
+    password_hashers:
+        App\Security\ApiUser:
+            algorithm: auto
+
+    providers:
+        api_users:
+            id: App\Security\ApiUserProvider
+
+    firewalls:
+        login:
+            pattern: ^/auth/login$
+            stateless: true
+            provider: api_users
+            json_login:
+                check_path: /auth/login
+                username_path: userId
+                password_path: password
+                success_handler: lexik_jwt_authentication.handler.authentication_success
+                failure_handler: lexik_jwt_authentication.handler.authentication_failure
+
+        api:
+            pattern: ^/
+            stateless: true
+            provider: api_users
+            jwt: ~
+
+    access_control:
+        - { path: ^/auth/login$, roles: PUBLIC_ACCESS }
+        - { path: ^/lectures, roles: IS_AUTHENTICATED_FULLY }

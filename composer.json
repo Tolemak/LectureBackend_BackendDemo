@@ -6,6 +6,7 @@
   "require": {
     "php": "^8.3",
     "ext-mongodb": "*",
+    "lexik/jwt-authentication-bundle": "^3.2",
     "mongodb/mongodb": "^1.9",
     "ramsey/uuid": "^4.2",
     "symfony/console": "7.4.*",
@@ -14,6 +15,8 @@
     "symfony/framework-bundle": "7.4.*",
     "symfony/routing": "7.4.*",
     "symfony/runtime": "7.4.*",
+    "symfony/security-bundle": "^7.4",
+    "symfony/validator": "^7.4",
     "symfony/yaml": "7.4.*"
   },
   "require-dev": {
