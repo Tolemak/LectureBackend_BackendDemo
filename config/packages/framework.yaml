@@ -3,6 +3,10 @@ framework:
     http_method_override: false
     handle_all_throwables: true
 
+    serializer: ~
+    validation:
+        email_validation_mode: html5
+
     session:
         handler_id: null
         cookie_secure: auto
