@@ -2,6 +2,14 @@ parameters:
     database_uri: '%env(DATABASE_URI)%'
     database_name: '%env(key:path:url:DATABASE_URI)%'
 
+    # Fallback values used when the corresponding env var is not set (no .env is
+    # committed; real deployments provide these as actual environment variables).
+    env(APP_SECRET): ''
+    env(DATABASE_URI): 'mongodb://localhost:27017/lecture-backend'
+    env(JWT_SECRET_KEY): '%kernel.project_dir%/config/jwt/private.pem'
+    env(JWT_PUBLIC_KEY): '%kernel.project_dir%/config/jwt/public.pem'
+    env(JWT_PASSPHRASE): ''
+
 services:
     _defaults:
         autowire: true
