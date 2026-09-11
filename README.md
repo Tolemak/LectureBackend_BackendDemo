@@ -1,5 +1,7 @@
 # LectureBackend
 
+*Read this in other languages: [Polski](README.pl.md)*
+
 A REST API backend for managing lectures and student enrollments, written in PHP (Symfony) with a MongoDB database.
 
 The app uses PHP 8.3 (enums, readonly classes) and a layered architecture separating domain logic, the data access layer (`src/Persistence`), and the presentation layer (API controllers).
