@@ -5,9 +5,9 @@
   "description": "Lecture management REST API built with Symfony and MongoDB.",
   "require": {
     "php": "^8.3",
-    "ext-mongodb": "*",
+    "ext-mongodb": "^2.4",
     "lexik/jwt-authentication-bundle": "^3.2",
-    "mongodb/mongodb": "^1.9",
+    "mongodb/mongodb": "^2.4",
     "ramsey/uuid": "^4.2",
     "symfony/console": "7.4.*",
     "symfony/dotenv": "7.4.*",

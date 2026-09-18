@@ -21,21 +21,21 @@ final readonly class DatabaseClient
     public function upsert(string $collectionName, array $query, array $document): void
     {
         $this->mongoClient
-            ->selectCollection($this->databaseName, $collectionName)
+            ->getCollection($this->databaseName, $collectionName)
             ->updateOne($query, $document, ['upsert' => true]);
     }
 
     public function delete(string $collectionName, array $query): void
     {
         $this->mongoClient
-            ->selectCollection($this->databaseName, $collectionName)
+            ->getCollection($this->databaseName, $collectionName)
             ->deleteOne($query);
     }
 
     public function getByQuery(string $collectionName, array $query, array $options = []): array
     {
         $documents = $this->mongoClient
-            ->selectCollection($this->databaseName, $collectionName)
+            ->getCollection($this->databaseName, $collectionName)
             ->find($query, $options);
 
         $result = [];
