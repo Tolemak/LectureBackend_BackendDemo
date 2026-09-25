@@ -29,8 +29,12 @@ phpunit: ## execute project unit tests
 phpcs: ## check coding standard (PSR-12)
 		docker compose run --rm app sh -lc "./vendor/bin/phpcs"
 
+.PHONY: phpstan
+phpstan: ## run static analysis (PHPStan level 8)
+		docker compose run --rm app sh -lc "./vendor/bin/phpstan analyse --no-progress"
+
 .PHONY: tests
-tests: up phpunit phpcs
+tests: up phpunit phpcs phpstan
 
 .PHONY: exec
 exec: ## Gets inside a container, use 's' variable to select a service. make exec s=app

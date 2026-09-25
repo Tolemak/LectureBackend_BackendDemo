@@ -6,8 +6,14 @@ namespace App\Lecture;
 
 use App\Util\Collection\Collection;
 
+/**
+ * @extends Collection<Lecture>
+ */
 final class LectureCollection extends Collection
 {
+    /**
+     * @return array<int, array<string, int|string>>
+     */
     public function toArray(): array
     {
         return array_map(

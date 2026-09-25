@@ -43,6 +43,9 @@ jobs:
       - name: Check coding standard
         run: vendor/bin/phpcs
 
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress
+
       - name: Run tests with coverage
         run: vendor/bin/phpunit --coverage-clover var/coverage/clover.xml
 

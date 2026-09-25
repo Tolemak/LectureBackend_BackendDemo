@@ -10,6 +10,9 @@ use Symfony\Component\Security\Core\User\UserInterface;
 
 final class ApiUser implements UserInterface, PasswordAuthenticatedUserInterface
 {
+    /**
+     * @param non-empty-string $id
+     */
     public function __construct(
         private readonly string $id,
         private readonly UserRole $role,

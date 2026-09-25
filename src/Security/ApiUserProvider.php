@@ -23,6 +23,10 @@ final class ApiUserProvider implements UserProviderInterface
 
     public function loadUserByIdentifier(string $identifier): UserInterface
     {
+        if ($identifier === '') {
+            throw new UserNotFoundException();
+        }
+
         $users = $this->databaseClient->getByQuery('user', ['id' => $identifier]);
         $user = $users[0] ?? null;
 
