@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Tests;
 
 use App\Persistence\DatabaseClient;
+use App\Service\LectureService;
 use App\User\User;
 use App\User\UserRole;
 use App\Util\StringId;
@@ -16,7 +17,7 @@ abstract class ApiTestCase extends WebTestCase
 {
     protected const string TEST_PASSWORD = 'test-password';
 
-    protected readonly KernelBrowser $httpClient;
+    protected KernelBrowser $httpClient;
     protected User $studentUser;
     protected User $otherStudentUser;
     protected User $lecturerUser;
@@ -25,8 +26,7 @@ abstract class ApiTestCase extends WebTestCase
     {
         $this->httpClient = static::createClient();
 
-        /** @var DatabaseClient $databaseClient */
-        $databaseClient = $this->httpClient->getContainer()->get(DatabaseClient::class);
+        $databaseClient = $this->databaseClient();
         $databaseClient->dropDatabase();
 
         $this->addSampleUsers($databaseClient);
@@ -126,14 +126,19 @@ abstract class ApiTestCase extends WebTestCase
         }
     }
 
-    protected function tokenFor(User $user): string
+    protected function login(string $userId, string $password): Response
     {
-        $response = $this->makeRequest(
+        return $this->makeRequest(
             'POST',
             '/auth/login',
-            json_encode(['userId' => (string)$user->getId(), 'password' => self::TEST_PASSWORD], JSON_THROW_ON_ERROR),
+            self::json(['userId' => $userId, 'password' => $password]),
             ['CONTENT_TYPE' => 'application/json'],
         );
+    }
+
+    protected function tokenFor(User $user): string
+    {
+        $response = $this->login((string)$user->getId(), self::TEST_PASSWORD);
 
         self::assertSame(
             200,
@@ -141,7 +146,9 @@ abstract class ApiTestCase extends WebTestCase
             'Login failed: ' . $response->getContent(),
         );
 
-        $payload = json_decode($response->getContent(), true, 512, JSON_THROW_ON_ERROR);
+        $payload = self::decodeJson($response);
+        self::assertIsArray($payload);
+        self::assertIsString($payload['token'] ?? null);
 
         return $payload['token'];
     }
@@ -167,6 +174,9 @@ abstract class ApiTestCase extends WebTestCase
         );
     }
 
+    /**
+     * @param array<string, string> $headers
+     */
     protected function makeRequest(string $method, string $uri, string $content = '', array $headers = []): Response
     {
         $this->httpClient->request(
@@ -179,5 +189,45 @@ abstract class ApiTestCase extends WebTestCase
         );
 
         return $this->httpClient->getResponse();
+    }
+
+    protected function databaseClient(): DatabaseClient
+    {
+        $databaseClient = static::getContainer()->get(DatabaseClient::class);
+        self::assertInstanceOf(DatabaseClient::class, $databaseClient);
+
+        return $databaseClient;
+    }
+
+    /**
+     * @return list<string>
+     */
+    protected function enrolledStudentIds(string $lectureId): array
+    {
+        $lectureService = static::getContainer()->get(LectureService::class);
+        self::assertInstanceOf(LectureService::class, $lectureService);
+
+        return array_values(array_map(
+            static fn($enrollment) => (string)$enrollment->getStudentId(),
+            $lectureService->getEnrolledStudents($lectureId)->getItems(),
+        ));
+    }
+
+    protected static function json(mixed $data): string
+    {
+        return json_encode($data, JSON_THROW_ON_ERROR);
+    }
+
+    protected static function body(Response $response): string
+    {
+        $content = $response->getContent();
+        self::assertIsString($content);
+
+        return $content;
+    }
+
+    protected static function decodeJson(Response $response): mixed
+    {
+        return json_decode(self::body($response), true, 512, JSON_THROW_ON_ERROR);
     }
 }

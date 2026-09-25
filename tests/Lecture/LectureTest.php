@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace App\Tests\Lecture;
 
-use App\Persistence\DatabaseClient;
-use App\Service\LectureService;
 use App\Tests\ApiTestCase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -24,18 +22,18 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest(
             'POST',
             '/lectures',
-            json_encode($payload),
+            self::json($payload),
             $this->authHeaders($this->lecturerUser),
         );
 
         $this->assertEquals(201, $response->getStatusCode());
 
-        $created = json_decode($response->getContent(), true);
+        $created = self::decodeJson($response);
         $this->assertEquals('created', $created['status']);
         $this->assertNotEmpty($created['id']);
 
         $response = $this->makeRequest('GET', '/lectures', '', $this->authHeaders($this->lecturerUser));
-        $lectures = json_decode($response->getContent(), true);
+        $lectures = self::decodeJson($response);
 
         $ids = array_column($lectures, 'id');
         $this->assertContains($created['id'], $ids, 'The new lecture should show up in the lecture list');
@@ -47,7 +45,7 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest(
             'POST',
             '/lectures',
-            json_encode([]),
+            self::json([]),
             $this->authHeaders($this->lecturerUser),
         );
 
@@ -67,7 +65,7 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest(
             'POST',
             '/lectures',
-            json_encode($payload),
+            self::json($payload),
             $this->authHeaders($this->lecturerUser),
         );
 
@@ -87,7 +85,7 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest(
             'POST',
             '/lectures',
-            json_encode($payload),
+            self::json($payload),
             $this->authHeaders($this->studentUser),
         );
 
@@ -121,7 +119,7 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest(
             'POST',
             '/auth/login',
-            json_encode(['userId' => (string)$this->studentUser->getId(), 'password' => 'wrong']),
+            self::json(['userId' => (string)$this->studentUser->getId(), 'password' => 'wrong']),
             ['CONTENT_TYPE' => 'application/json'],
         );
 
@@ -144,8 +142,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['status' => 'removed']),
-            $response->getContent(),
+            self::json(['status' => 'removed']),
+            self::body($response),
         );
 
         $this->assertNotContains(
@@ -199,8 +197,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(200, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['status' => 'enrolled']),
-            $response->getContent(),
+            self::json(['status' => 'enrolled']),
+            self::body($response),
         );
 
         $this->assertContains(
@@ -213,7 +211,7 @@ final class LectureTest extends ApiTestCase
     #[Test]
     public function cannotEnrollToLectureIfStudentLimitExceeded(): void
     {
-        $this->httpClient->getContainer()->get(DatabaseClient::class)
+        $this->databaseClient()
             ->upsert('lectures', ['id' => 'lecture-2'], ['$set' => ['studentLimit' => 1]]);
 
         $this->assertEquals(200, $this->enroll('lecture-2', $this->studentUser)->getStatusCode());
@@ -222,8 +220,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(409, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['error' => 'Student limit reached']),
-            $response->getContent(),
+            self::json(['error' => 'Student limit reached']),
+            self::body($response),
         );
     }
 
@@ -232,7 +230,7 @@ final class LectureTest extends ApiTestCase
     {
         $lectureId = 'lecture-already-started';
 
-        $this->httpClient->getContainer()->get(DatabaseClient::class)->upsert(
+        $this->databaseClient()->upsert(
             'lectures',
             ['id' => $lectureId],
             [
@@ -251,8 +249,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(409, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['error' => 'Lecture already started']),
-            $response->getContent(),
+            self::json(['error' => 'Lecture already started']),
+            self::body($response),
         );
     }
 
@@ -263,8 +261,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(400, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['error' => 'Lecture not found']),
-            $response->getContent(),
+            self::json(['error' => 'Lecture not found']),
+            self::body($response),
         );
     }
 
@@ -293,7 +291,7 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(200, $response->getStatusCode());
 
-        $ids = array_column(json_decode($response->getContent(), true), 'id');
+        $ids = array_column(self::decodeJson($response), 'id');
         sort($ids);
 
         $this->assertEquals(['lecture-1', 'lecture-2'], $ids);
@@ -307,7 +305,7 @@ final class LectureTest extends ApiTestCase
         $response = $this->makeRequest('GET', '/lectures/mine', '', $this->authHeaders($this->otherStudentUser));
 
         $this->assertEquals(200, $response->getStatusCode());
-        $this->assertEquals([], json_decode($response->getContent(), true));
+        $this->assertEquals([], self::decodeJson($response));
     }
 
     #[Test]
@@ -322,23 +320,8 @@ final class LectureTest extends ApiTestCase
 
         $this->assertEquals(400, $response->getStatusCode());
         $this->assertJsonStringEqualsJsonString(
-            json_encode(['error' => 'Lecture not found']),
-            $response->getContent(),
-        );
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function enrolledStudentIds(string $lectureId): array
-    {
-        $enrollments = $this->httpClient->getContainer()
-            ->get(LectureService::class)
-            ->getEnrolledStudents($lectureId);
-
-        return array_map(
-            static fn($enrollment) => (string)$enrollment->getStudentId(),
-            $enrollments->getItems(),
+            self::json(['error' => 'Lecture not found']),
+            self::body($response),
         );
     }
 }

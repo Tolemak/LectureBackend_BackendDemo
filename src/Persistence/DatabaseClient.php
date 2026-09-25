@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace App\Persistence;
 
 use MongoDB\Client;
-use MongoDB\Model\BSONDocument;
 
 final readonly class DatabaseClient
 {
+    private const array TYPE_MAP = ['root' => 'array', 'document' => 'array', 'array' => 'array'];
+
     private Client $mongoClient;
 
     public function __construct(
@@ -18,6 +19,10 @@ final readonly class DatabaseClient
         $this->mongoClient = new Client($this->databaseUri);
     }
 
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $document
+     */
     public function upsert(string $collectionName, array $query, array $document): void
     {
         $this->mongoClient
@@ -25,23 +30,33 @@ final readonly class DatabaseClient
             ->updateOne($query, $document, ['upsert' => true]);
     }
 
-    public function delete(string $collectionName, array $query): void
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $update
+     */
+    public function updateOne(string $collectionName, array $query, array $update): bool
     {
-        $this->mongoClient
+        return $this->mongoClient
             ->getCollection($this->databaseName, $collectionName)
-            ->deleteOne($query);
+            ->updateOne($query, $update)
+            ->getMatchedCount() === 1;
     }
 
+    /**
+     * @param array<string, mixed> $query
+     * @param array<string, mixed> $options
+     * @return list<array<string, mixed>>
+     */
     public function getByQuery(string $collectionName, array $query, array $options = []): array
     {
         $documents = $this->mongoClient
             ->getCollection($this->databaseName, $collectionName)
-            ->find($query, $options);
+            ->find($query, ['typeMap' => self::TYPE_MAP] + $options);
 
         $result = [];
         foreach ($documents as $document) {
-            if ($document instanceof BSONDocument) {
-                $result[] = $document->getArrayCopy();
+            if (is_array($document)) {
+                $result[] = $document;
             }
         }
         return $result;

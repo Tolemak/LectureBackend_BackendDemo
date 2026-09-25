@@ -17,6 +17,8 @@ use App\Util\StringId;
 
 class LectureService
 {
+    private const string LECTURES = 'lectures';
+
     public function __construct(
         private readonly DatabaseClient $databaseClient,
     ) {
@@ -24,39 +26,17 @@ class LectureService
 
     public function getAllLectures(): LectureCollection
     {
-        $lecturesData = $this->databaseClient->getByQuery('lectures', []);
-        $lectures = array_map(
-            fn(array $data) => $this->hydrateLecture($data),
-            $lecturesData,
-        );
-        return new LectureCollection($lectures);
+        return $this->findLectures([]);
     }
 
     public function getLectureById(StringId $lectureId): ?Lecture
     {
-        $lecturesData = $this->databaseClient->getByQuery('lectures', ['id' => (string)$lectureId]);
-        if (count($lecturesData) === 0) {
-            return null;
-        }
-        return $this->hydrateLecture($lecturesData[0]);
+        return $this->findLectures(['id' => (string)$lectureId])->getItems()[0] ?? null;
     }
 
     public function getLecturesForStudent(StringId $studentId): LectureCollection
     {
-        $enrollments = $this->databaseClient->getByQuery(
-            'lecture_enrollments',
-            ['studentId' => (string)$studentId],
-        );
-
-        $lectures = [];
-        foreach ($enrollments as $enrollment) {
-            $lecture = $this->getLectureById(new StringId($enrollment['lectureId']));
-            if ($lecture !== null) {
-                $lectures[] = $lecture;
-            }
-        }
-
-        return new LectureCollection($lectures);
+        return $this->findLectures(['studentIds' => (string)$studentId]);
     }
 
     public function createLecture(
@@ -66,8 +46,6 @@ class LectureService
         \DateTimeImmutable $startDate,
         \DateTimeImmutable $endDate,
     ): Lecture {
-        // The id is always server-generated — a client-supplied id would let
-        // callers overwrite an existing lecture via upsert.
         $lecture = new Lecture(
             id: StringId::new(),
             lecturerId: $lecturerId,
@@ -78,7 +56,7 @@ class LectureService
         );
 
         $this->databaseClient->upsert(
-            'lectures',
+            self::LECTURES,
             ['id' => (string)$lecture->getId()],
             [
                 '$set' => [
@@ -88,6 +66,7 @@ class LectureService
                     'studentLimit' => $lecture->getStudentLimit(),
                     'startDate' => $lecture->getStartDate()->format(DATE_ATOM),
                     'endDate' => $lecture->getEndDate()->format(DATE_ATOM),
+                    'studentIds' => [],
                 ],
             ],
         );
@@ -106,32 +85,19 @@ class LectureService
             throw new LectureAlreadyStartedException();
         }
 
-        $enrollmentCollection = $this->getEnrolledStudents($lectureId);
+        $enrolled = $this->databaseClient->updateOne(
+            self::LECTURES,
+            [
+                'id' => $lectureId,
+                'studentIds' => ['$ne' => $studentId],
+                '$expr' => ['$lt' => [['$size' => ['$ifNull' => ['$studentIds', []]]], '$studentLimit']],
+            ],
+            ['$push' => ['studentIds' => $studentId]],
+        );
 
-        if ($enrollmentCollection->count() >= $lecture->getStudentLimit()) {
+        if (!$enrolled && !$this->isEnrolled($lectureId, $studentId)) {
             throw new StudentLimitReachedException();
         }
-
-        $alreadyEnrolled = $enrollmentCollection->filter(
-            fn(LectureEnrollment $e) => $e->getStudentId()->equals(new StringId($studentId)),
-        );
-        if ($alreadyEnrolled->count() > 0) {
-            return;
-        }
-
-        $this->databaseClient->upsert(
-            'lecture_enrollments',
-            [
-                'lectureId' => $lectureId,
-                'studentId' => $studentId,
-            ],
-            [
-                '$set' => [
-                    'lectureId' => $lectureId,
-                    'studentId' => $studentId,
-                ],
-            ],
-        );
     }
 
     public function removeStudent(string $lectureId, string $studentId, string $requesterId): void
@@ -147,26 +113,45 @@ class LectureService
             throw new NotAuthorizedException();
         }
 
-        $this->databaseClient->delete(
-            'lecture_enrollments',
-            [
-                'lectureId' => $lectureId,
-                'studentId' => $studentId,
-            ],
+        $this->databaseClient->updateOne(
+            self::LECTURES,
+            ['id' => $lectureId],
+            ['$pull' => ['studentIds' => $studentId]],
         );
     }
 
     public function getEnrolledStudents(string $lectureId): LectureEnrollmentCollection
     {
-        $enrollmentsData = $this->databaseClient->getByQuery('lecture_enrollments', ['lectureId' => $lectureId]);
+        $lectures = $this->databaseClient->getByQuery(
+            self::LECTURES,
+            ['id' => $lectureId],
+            ['projection' => ['studentIds' => 1]],
+        );
+
+        $studentIds = $lectures[0]['studentIds'] ?? [];
         $enrollments = array_map(
-            fn(array $e) => new LectureEnrollment(
-                new StringId($e['lectureId']),
-                new StringId($e['studentId']),
-            ),
-            $enrollmentsData,
+            static fn(string $studentId) => new LectureEnrollment(new StringId($lectureId), new StringId($studentId)),
+            is_array($studentIds) ? array_values($studentIds) : [],
         );
         return new LectureEnrollmentCollection($enrollments);
+    }
+
+    private function isEnrolled(string $lectureId, string $studentId): bool
+    {
+        $query = ['id' => $lectureId, 'studentIds' => $studentId];
+
+        return $this->databaseClient->getByQuery(self::LECTURES, $query) !== [];
+    }
+
+    /**
+     * @param array<string, mixed> $query
+     */
+    private function findLectures(array $query): LectureCollection
+    {
+        return new LectureCollection(array_map(
+            fn(array $data) => $this->hydrateLecture($data),
+            $this->databaseClient->getByQuery(self::LECTURES, $query),
+        ));
     }
 
     /**
