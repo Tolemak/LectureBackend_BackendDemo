@@ -7,8 +7,12 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 RUN docker-php-ext-configure opcache --enable-opcache \
     && docker-php-ext-install opcache
 
-RUN pecl install xdebug && docker-php-ext-enable xdebug \
-    && pecl install mongodb-2.5.2 && docker-php-ext-enable mongodb
+RUN pecl install mongodb-2.5.2 && docker-php-ext-enable mongodb
+
+ARG INSTALL_XDEBUG=0
+RUN if [ "$INSTALL_XDEBUG" = "1" ]; then \
+      pecl install xdebug && docker-php-ext-enable xdebug; \
+    fi
 
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
@@ -17,5 +21,9 @@ RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-av
     && sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf \
     && a2enmod rewrite
 
+RUN mkdir -p /app/var && chown -R www-data:www-data /app/var
+
 WORKDIR /app
-COPY ./ ./
+COPY --chown=www-data:www-data ./ ./
+
+USER www-data

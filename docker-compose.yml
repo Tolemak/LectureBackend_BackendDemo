@@ -1,6 +1,9 @@
 services:
   app:
-    build: ./
+    build:
+      context: ./
+      args:
+        INSTALL_XDEBUG: "1"
     container_name: lecture-backend
     volumes:
       - .:/app:rw
