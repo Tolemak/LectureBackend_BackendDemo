@@ -10,7 +10,7 @@ services:
       - database
 
   database:
-    image: mongo:5.0
+    image: mongo:8.0
     container_name: lecture-backend-database
     volumes:
       - mongodb:/data/db
