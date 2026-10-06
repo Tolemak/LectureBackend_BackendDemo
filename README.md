@@ -12,3 +12,5 @@ make help
 ```
 
 Log in with `POST /auth/login` `{"userId": "...", "password": "..."}`, then send `Authorization: Bearer <token>`.
+
+`config/services.yaml` defines fallback values for env vars that are not set; no `.env` is committed and real deployments provide actual environment variables.

@@ -132,7 +132,6 @@ final class LectureTest extends ApiTestCase
         $studentId = (string)$this->studentUser->getId();
         $this->enroll('lecture-1', $this->studentUser);
 
-        // lecture-1 is owned by lecturer-1 ($this->lecturerUser) — see ApiTestCase::addSampleLectures().
         $response = $this->makeRequest(
             'DELETE',
             '/lectures/lecture-1/students/' . $studentId,
