@@ -12,3 +12,5 @@ make help
 ```
 
 Logowanie przez `POST /auth/login` `{"userId": "...", "password": "..."}`, potem nagłówek `Authorization: Bearer <token>`.
+
+`config/services.yaml` definiuje wartości zastępcze dla niewystawionych zmiennych env; nie ma commitowanego `.env`, a prawdziwe wdrożenia dostarczają zmienne środowiskowe.
