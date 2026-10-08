@@ -1,7 +1,7 @@
 FROM php:8.3-apache
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
-      git zip unzip ngrep \
+      git zip unzip \
     && rm -rf /var/lib/apt/lists/*
 
 RUN docker-php-ext-configure opcache --enable-opcache \
