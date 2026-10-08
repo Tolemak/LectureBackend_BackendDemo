@@ -1,5 +1,7 @@
 # LectureBackend
 
+[![CI](https://github.com/Tolemak/LectureBackend_BackendDemo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Tolemak/LectureBackend_BackendDemo/actions/workflows/ci.yml)
+
 REST API for lectures and student enrollments. Symfony + MongoDB, JWT auth. Lecturers create lectures with a seat limit, students enroll (once per lecture, before it starts, while seats last) and can check their own list. The OpenAPI spec is in `.misc/openapi/openapi.yml`.
 
 [Polska wersja](README.pl.md)

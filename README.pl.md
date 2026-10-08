@@ -1,5 +1,7 @@
 # LectureBackend
 
+[![CI](https://github.com/Tolemak/LectureBackend_BackendDemo/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Tolemak/LectureBackend_BackendDemo/actions/workflows/ci.yml)
+
 REST API do wykładów i zapisów studentów. Symfony + MongoDB, logowanie JWT. Wykładowca tworzy wykład z limitem miejsc, student się zapisuje (raz na wykład, przed jego startem, póki są miejsca) i może sprawdzić swoją listę. Specyfikacja OpenAPI leży w `.misc/openapi/openapi.yml`.
 
 [English version](README.md)
